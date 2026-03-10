@@ -12,7 +12,7 @@ There are stub HTML/JS files for a planned web UI. The script has some bugs (dup
 
 ## Plan Overview
 
-Modernize the tool and extend it to support **family tree construction** and **genealogy estimates** (estimated birth/death ranges, likely family relationships, generational timelines).
+Modernize the tool and extend it to support **family tree construction**, **genealogy estimates** (estimated birth/death ranges, likely family relationships, generational timelines), **Ancestry tree import**, and **automated fact-checking** to catch errors and inconsistencies in existing trees.
 
 ---
 
@@ -144,7 +144,82 @@ class FamilyTree:
 
 ---
 
-## Phase 5: Multi-Person / Family Search
+## Phase 5: Ancestry Tree Integration
+
+### 5.1 GEDCOM export from Ancestry
+- Ancestry allows exporting your tree as a GEDCOM (.ged) file
+- Add a guided workflow: instructions + CLI command to import the exported file
+- Parse the GEDCOM into the internal `FamilyTree` model (Phase 3)
+
+### 5.2 Ancestry API / Web scraping (if available)
+- Ancestry has had unofficial/partner APIs over the years
+- Investigate current options:
+  - **RootsMagic / TreeShare protocol** — used by desktop software to sync with Ancestry trees
+  - **Ancestry HTML scraping** — parse tree pages if the user provides session cookies (authenticated scraping of their own data)
+  - **ThruLines data** — Ancestry's own relationship estimation feature; extract suggested connections
+- Fallback: provide deep-link URLs directly into the user's Ancestry tree for specific people
+
+### 5.3 Tree-aware search
+- Once the Ancestry tree is imported, use it to drive smarter searches:
+  - Identify people in the tree with **missing data** (no birth date, no death date, no parents) and auto-generate targeted searches for them
+  - Prioritize "brick wall" ancestors (end-of-line with no parents) for research
+  - Use known family context (siblings, spouses) to improve search accuracy
+  - Cross-reference the tree against FamilySearch/FindAGrave to find records not yet attached
+
+### 5.4 Ancestry Hints integration
+- Generate URLs that link directly to Ancestry hint pages for specific people in the tree
+- URL pattern: `https://www.ancestry.com/family-tree/person/tree/<TREE_ID>/person/<PERSON_ID>/hints`
+- Help the user systematically work through unreviewed hints
+
+---
+
+## Phase 6: Fact Checker & Tree Quality Analyzer
+
+### 6.1 Biological impossibility detection
+- **Age at childbirth**: Flag if a mother is listed as <13 or >50, or a father is <13 or >75
+- **Age at death**: Flag if lifespan exceeds 110 years or death is before birth
+- **Age at marriage**: Flag if either spouse is <14 at marriage date
+- **Birth after parent's death**: Flag if a child is born >9 months after father's death, or after mother's death
+- **Duplicate people**: Detect likely duplicates (same name + similar dates) that should be merged
+
+### 6.2 Chronological consistency checks
+- **Event ordering**: Birth < Marriage < Death for each person
+- **Date gaps**: Flag suspiciously large gaps (e.g., 20+ year gap between siblings suggesting a missing child)
+- **Census consistency**: If a person appears in 1850 census age 10, they should appear in 1860 census age ~20 — flag mismatches
+- **Location consistency**: Flag if a person is recorded in two distant places at implausible times (e.g., born in Ireland, married in Ohio 2 months later in 1830)
+
+### 6.3 Source quality assessment
+- Flag people/events with **no sources attached**
+- Flag people whose only source is another user's tree (unreliable)
+- Identify which facts are supported by primary sources (vital records, census) vs. secondary sources (compiled databases, other trees)
+- Generate a **confidence score** per person: High (multiple primary sources), Medium (some sources), Low (no sources or tree-only)
+
+### 6.4 Common genealogy mistakes detection
+- **Wrong century**: Catch accidental 1900 vs 1800 typos (a parent born after their child)
+- **Name spelling drift**: Flag when the same person has significantly different name spellings across records without explanation
+- **Impossible locations**: Place names that didn't exist at the stated date (e.g., "West Virginia" before 1863)
+- **Ethnicity/origin mismatches**: Flag when surname origin doesn't match stated birth country (could be legitimate but worth reviewing)
+- **Too-perfect data**: Flag when every ancestor has exact birth/death dates going back to the 1600s (likely fabricated or unverified)
+
+### 6.5 Tree completeness analysis
+- Calculate **completeness percentage** per generation:
+  - Generation 1 (parents): 2 people expected
+  - Generation 2 (grandparents): 4 expected
+  - Generation 3: 8 expected, etc.
+- Identify which branches are well-researched vs. sparse
+- Suggest which branch to focus research on next (the least complete one with the most potential records)
+
+### 6.6 Fact check report
+- Generate a structured report with issues categorized by severity:
+  - **Errors** (red): Biological impossibilities, dates out of order
+  - **Warnings** (yellow): Missing sources, suspicious gaps, low confidence data
+  - **Suggestions** (blue): Missing data that could be found, unreviewed hints, merge candidates
+- Output as JSON, HTML, or terminal-formatted text
+- Include direct links to the relevant Ancestry tree pages for each flagged issue
+
+---
+
+## Phase 7: Multi-Person / Family Search
 
 ### 5.1 Batch search from CSV/JSON input
 - Accept a CSV or JSON file with multiple people to search
@@ -166,7 +241,7 @@ class FamilyTree:
 
 ---
 
-## Phase 6: Web UI
+## Phase 8: Web UI
 
 ### 6.1 Build the search form (`formTemplate.html`)
 - Input fields: first name, last name, place (with autocomplete), year
@@ -197,16 +272,22 @@ class FamilyTree:
 | Priority | Phase | Effort | Impact |
 |----------|-------|--------|--------|
 | 1        | Phase 1 (Modernize) | Low | High - fixes broken code |
-| 2        | Phase 2.1-2.2 (FamilySearch + FindAGrave) | Low | High - 2 major free sources |
-| 3        | Phase 4.1-4.2 (Generation + Lifespan estimates) | Medium | High - core differentiator |
-| 4        | Phase 3 (Data model) | Medium | Medium - enables everything else |
-| 5        | Phase 4.4 (Search year ranges) | Low | High - smart search automation |
-| 6        | Phase 5.2 (Relative search) | Medium | High - automates discovery |
-| 7        | Phase 2.3-2.4 (More providers) | Medium | Medium |
-| 8        | Phase 6 (Web UI) | High | Medium - nice to have |
-| 9        | Phase 5.1 (Batch search) | Low | Low |
-| 10       | Phase 4.3 (Migration patterns) | Medium | Medium |
-| 11       | Phase 3.4 (GEDCOM) | Medium | Medium |
+| 2        | Phase 3 (Data model) | Medium | High - enables everything else |
+| 3        | Phase 3.4 (GEDCOM import/export) | Medium | High - needed for Ancestry import |
+| 4        | Phase 5.1 (Ancestry GEDCOM import) | Low | **Very High** - uses your existing tree |
+| 5        | Phase 6.1-6.2 (Fact checker: impossibilities + chronology) | Medium | **Very High** - catches tree errors |
+| 6        | Phase 6.3-6.5 (Source quality + completeness) | Medium | High - prioritizes research |
+| 7        | Phase 2.1-2.2 (FamilySearch + FindAGrave) | Low | High - 2 major free sources |
+| 8        | Phase 4.1-4.2 (Generation + Lifespan estimates) | Medium | High - core differentiator |
+| 9        | Phase 5.3 (Tree-aware search) | Medium | **Very High** - auto-fills gaps |
+| 10       | Phase 4.4 (Search year ranges) | Low | High - smart search automation |
+| 11       | Phase 6.6 (Fact check report) | Low | High - actionable output |
+| 12       | Phase 7.2 (Relative search) | Medium | High - automates discovery |
+| 13       | Phase 2.3-2.4 (More providers) | Medium | Medium |
+| 14       | Phase 4.3 (Migration patterns) | Medium | Medium |
+| 15       | Phase 8 (Web UI) | High | Medium - nice to have |
+| 16       | Phase 5.2 (Ancestry API/scraping) | High | Medium - complex, may break |
+| 17       | Phase 7.1 (Batch search) | Low | Low |
 
 ---
 
@@ -228,20 +309,34 @@ genSearch/
 │   │   ├── findmypast.py
 │   │   ├── findagrave.py
 │   │   └── billiongraves.py
-│   ├── gedcom.py               # GEDCOM import/export
+│   ├── tree_import/            # Tree import from external sources
+│   │   ├── __init__.py
+│   │   ├── gedcom_parser.py    # GEDCOM file import/export
+│   │   └── ancestry_import.py  # Ancestry-specific import helpers
+│   ├── fact_checker/           # Tree quality & fact checking
+│   │   ├── __init__.py
+│   │   ├── checks.py           # Individual check functions
+│   │   ├── rules.py            # Configurable thresholds & rules
+│   │   ├── report.py           # Report generation (JSON/HTML/text)
+│   │   └── completeness.py     # Tree completeness analysis
 │   └── utils.py                # URL encoding, date math
 ├── web/                        # Web UI
 │   ├── app.py                  # Flask/FastAPI app
 │   ├── templates/
 │   │   ├── index.html
-│   │   └── form.html
+│   │   ├── form.html
+│   │   └── report.html         # Fact check report view
 │   └── static/
 │       ├── style.css
 │       └── app.js
 ├── tests/
 │   ├── test_estimates.py
 │   ├── test_providers.py
-│   └── test_models.py
+│   ├── test_models.py
+│   ├── test_fact_checker.py
+│   └── test_gedcom.py
+├── sample_data/
+│   └── sample.ged              # Sample GEDCOM for testing
 ├── requirements.txt
 ├── setup.py
 └── README.md
