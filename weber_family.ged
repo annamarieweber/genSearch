@@ -55,6 +55,9 @@
 0 @F2@ FAM
 1 HUSB @fred@
 1 WIFE @carol@
+1 MARR
+2 DATE JUL
+2 PLAC New York
 0 @F3@ FAM
 1 WIFE @alma@
 1 CHIL @carol@
