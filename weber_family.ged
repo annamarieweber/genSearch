@@ -22,6 +22,14 @@
 2 GIVN Christine
 2 SURN Wheeler
 1 SEX F
+0 @fred@ INDI
+1 NAME Fred /Weber/
+2 GIVN Fred
+2 SURN Weber
+1 SEX M
+1 BIRT
+2 DATE 12 MAR 1939
+1 FAMS @F2@
 0 @carol@ INDI
 1 NAME Carol /Roberts/
 2 GIVN Carol
@@ -29,8 +37,24 @@
 1 SEX F
 1 BIRT
 2 DATE 25 DEC 1941
+1 FAMS @F2@
+1 FAMC @F3@
+0 @alma@ INDI
+1 NAME Alma /Fenton/
+2 GIVN Alma
+2 SURN Fenton
+1 SEX F
+1 BIRT
+2 DATE 22 JUN
+1 FAMS @F3@
 0 @F1@ FAM
 1 HUSB @todd@
 1 WIFE @christine@
 1 CHIL @anna@
+0 @F2@ FAM
+1 HUSB @fred@
+1 WIFE @carol@
+0 @F3@ FAM
+1 WIFE @alma@
+1 CHIL @carol@
 0 TRLR
