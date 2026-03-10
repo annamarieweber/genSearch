@@ -1,0 +1,36 @@
+0 HEAD
+1 SOUR genSearch
+2 VERS 0.1.0
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @anna@ INDI
+1 NAME Anna /Weber/
+2 GIVN Anna
+2 SURN Weber
+1 SEX F
+1 BIRT
+2 DATE 28 MAR 1997
+0 @todd@ INDI
+1 NAME Todd /Weber/
+2 GIVN Todd
+2 SURN Weber
+1 SEX M
+0 @christine@ INDI
+1 NAME Christine /Wheeler/
+2 GIVN Christine
+2 SURN Wheeler
+1 SEX F
+0 @carol@ INDI
+1 NAME Carol /Roberts/
+2 GIVN Carol
+2 SURN Roberts
+1 SEX F
+1 BIRT
+2 DATE 25 DEC 1941
+0 @F1@ FAM
+1 HUSB @todd@
+1 WIFE @christine@
+1 CHIL @anna@
+0 TRLR
