@@ -1,96 +1,104 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
-
-''' 
-                   _______                       __    
+#!/usr/bin/env python3
+"""
+                   _______                       __
 .-----.-----.-----|   _   .-----.---.-.----.----|  |--.
 |  _  |  -__|     |   1___|  -__|  _  |   _|  __|     |
 |___  |_____|__|__|____   |_____|___._|__| |____|__|__|
-|_____|           |:  1   |                            
-                  |::.. . |                            
-                  `-------'                            
-'''
+|_____|           |:  1   |
+                  |::.. . |
+                  `-------'
+
+GenSearch - Multi-site genealogy search tool.
+
+Usage:
+    python genSearch.py --first John --last Smith --place "Philadelphia, PA" --year 1850
+    python genSearch.py John Smith "Philadelphia, PA" 1850
+    python genSearch.py --first John --last Smith --place "Philadelphia, PA" --year 1850 --json
+    python genSearch.py --first John --last Smith --place "Philadelphia, PA" --year 1850 --sites ancestry familysearch
+"""
+
+import argparse
+import json
 import sys
 import webbrowser
 
-print sys.argv
-firstName  = str(sys.argv[1])
-lastName = str(sys.argv[2])
-place = str(sys.argv[3])
-when = str(sys.argv[4])
-# First name of the individal to search
-# firstName = raw_input('First Name of the individual to search: ')
-firstName = firstName.replace(" ", "+")
+from gensearch.providers.ancestry import AncestryProvider
+from gensearch.providers.familysearch import FamilySearchProvider
+from gensearch.providers.findmypast import FindMyPastProvider
+from gensearch.providers.findagrave import FindAGraveProvider
+from gensearch.providers.billiongraves import BillionGravesProvider
 
-# Last name of individual
-#lastName = raw_input('Last Name: ')
-lastName = lastName.replace(" ", "+")
-
-# Place where the individual could have lived
-#place = raw_input('Where they lived (separate by commas ex. city,state,country): ')
-place = place.replace(" ", "")
-place = place.replace(",", "%2C")
-
-# When the person could have lived need to restrict to integers
-#when = raw_input('Where they lived (year ex. 1771): ')
-
-# Ancestry
-ancestry = "http://search.ancestry.com/cgi-bin/sse.dll?gl=allgs&gss=sfs28_ms_f-2_s&new=1&rank=1&msT=1"
-ancestry += "&gsfn=" + firstName
-ancestry += "&gsln=" + lastName
-ancestry += "&mswpn__ftp=" + place
-ancestry += "&msbdy=" + when
-
-# Findmypast
-findmypast = "http://search.findmypast.com/results/world-records?"
-findmypast += "firstname=" + firstName
-findmypast += "&lastname=" + lastName
-place = place.replace("%2C", "utf002c%20")
-findmypast += "&keywordsplace=" + place
-findmypast += "&eventyear=" + when + "&eventyear_offset=2"
+ALL_PROVIDERS = {
+    "ancestry": AncestryProvider(),
+    "findmypast": FindMyPastProvider(),
+    "familysearch": FamilySearchProvider(),
+    "findagrave": FindAGraveProvider(),
+    "billiongraves": BillionGravesProvider(),
+}
 
 
-# Creating the query strings for individual sites
-ancestry += "&gsfn=" + firstName
-findmypast += "firstname=" + firstName
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Search multiple genealogy sites for a person."
+    )
+    parser.add_argument("first", nargs="?", help="First name (positional)")
+    parser.add_argument("last", nargs="?", help="Last name (positional)")
+    parser.add_argument("place", nargs="?", help="Place (positional)")
+    parser.add_argument("year", nargs="?", help="Year (positional)")
 
-# Determining whether the name should be exact or not.  Maybe change wording...
-#fnexact = raw_input('Exactly that first name?(type \'y\' for yes or just enter for no: ')
-# if fnexact == 'y' or fnexact == 'Y':
-# 	ancestry += "&gsfn_x=1"
-# 	findmypast += "&firstname_variants=true"
-# else:
-# 	ancestry += "&gsfn_x=0"
+    parser.add_argument("--first", dest="first_flag", help="First name")
+    parser.add_argument("--last", dest="last_flag", help="Last name")
+    parser.add_argument("--place", dest="place_flag", help="Place (city, state, country)")
+    parser.add_argument("--year", dest="year_flag", help="Year (birth or approximate)")
+
+    parser.add_argument(
+        "--sites", nargs="+", choices=list(ALL_PROVIDERS.keys()),
+        help="Which sites to search (default: all)",
+    )
+    parser.add_argument(
+        "--json", dest="output_json", action="store_true",
+        help="Output URLs as JSON instead of opening browser tabs",
+    )
+    parser.add_argument(
+        "--no-open", dest="no_open", action="store_true",
+        help="Print URLs but don't open browser tabs",
+    )
+
+    args = parser.parse_args(argv)
+
+    # Merge positional and flag arguments (flags take priority)
+    first = args.first_flag or args.first
+    last = args.last_flag or args.last
+    place = args.place_flag or args.place
+    year = args.year_flag or args.year
+
+    if not all([first, last]):
+        parser.error("First name and last name are required.")
+
+    return first, last, place or "", year or "", args
 
 
+def main(argv=None):
+    first, last, place, year, args = parse_args(argv)
 
-# ancestry += "&gsln=" + lastName
-# findmypast += "&lastname=" + lastName
+    sites = args.sites or list(ALL_PROVIDERS.keys())
+    providers = {name: ALL_PROVIDERS[name] for name in sites}
 
-# #lnexact = raw_input('Exactly that last name?(type \'y\' for yes or just enter for no: ')
-# if lnexact == 'y' or lnexact == 'Y':
-# 	ancestry += "&gsln_x=1"
-# 	indmypast += "&lastname_variants=true"
-# else:
-# 	ancestry += "&gsln_x=0"
+    urls = {}
+    for name, provider in providers.items():
+        urls[name] = provider.build_url(first, last, place, year)
 
-ancestry += "&mswpn__ftp=" + place
-# Changing the place syntax for findmypast
-place = place.replace("%2C", "utf002c%20")
-findmypast += "&keywordsplace=" + place
+    if args.output_json:
+        print(json.dumps(urls, indent=2))
+        return
+
+    for name, url in urls.items():
+        print(f"[{name}] {url}")
+
+    if not args.no_open:
+        for url in urls.values():
+            webbrowser.open_new_tab(url)
 
 
-
-ancestry += "&msbdy=" + when
-findmypast += "&eventyear=" + when + "&eventyear_offset=2"
-
-ancestry += "&MSAV=1&cp=0&catbucket=rstp&uidh=qth"
-
-# Open tabs
-webbrowser.open_new_tab(ancestry)
-webbrowser.open_new_tab(findmypast)
-
-#https://familysearch.org/search/record/results?count=20&query=%2Bgivenname%3ADaniel%20%2Bbirth_place%3A%22Iowa%2C%20USA%22~%20%2Bbirth_year%3A1992-1992~
-#http://search.findmypast.com/results/world-records?firstname=george&firstname_variants=true&lastname=ebeling&lastname_variants=true&eventyear=1880&eventyear_offset=2&keywordsplace=philadelphiautf002c%20pennsylvania
-#http://search.ancestry.com/cgi-bin/sse.dll?gl=allgs&gss=sfs28_ms_f-2_s&new=1&rank=1&msT=1&gsfn=Dan&gsfn_x=0&gsln=Ebeling&gsln_x=0&mswpn__ftp=Broomall%2C%20Pennsylvania%2CUSA&MSAV=1&msbdy=1992&cp=0&catbucket=rstp&uidh=qth
+if __name__ == "__main__":
+    main()
